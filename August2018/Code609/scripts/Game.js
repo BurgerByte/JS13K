@@ -3,70 +3,73 @@ function startGame() {
 }
 
 var Map = (function(){
-	const SIZE = 15;
-	const MAX_ROOM_SIZE = 2;
+	const GRID_SIZE = 8;
 	const MAX_ROOMS = 12;
-	var gridCount = MAX_ROOMS;
-	let layout = [];
-	while(layout.length < SIZE) { layout.push([])}
-	//populate layout full of empty rooms
-	layout.forEach(function(col){
-		while(col.length < 15) 
-			col.push({isRoom: 0, links:[]});
+	const MAX_LINKS = 3;
+	var roomCount = 0;
+	var layout = [];
+	while(layout.length < GRID_SIZE) { layout.push([]) }
+	layout.forEach(function(row){
+		while( row.length < GRID_SIZE ){
+			row.push( { isRoom: 0, links :[]})
+		}
 	});
-	startPos = { col: Math.floor(Math.random() * (SIZE - 0.1)), row : Math.floor( Math.random() * (SIZE-0.1)) }
-	//generate rooms from start positions
-	function buildRoom(pos, linkedPos = null ) {
-		console.log(Date.now());
-		let room = layout[pos.col][pos.row];
-		room.isRoom = 1;
-		//if starting rooom, room size is always one else varies between one or two
-		let rs = gridCount == MAX_ROOMS ?  1 : Math.floor(((MAX_ROOM_SIZE - 0.01) * Math.random())) + 1;
-		rs = gridCount - rs >= 0 ? rs : 0;
-		//getting grid values in cardinal directions
-		let top = pos.row - 1 > 0 ? pos.row - 1 : 0;
-		let btm = pos.row + 1 < SIZE - 1 ? pos.row + 1 : SIZE - 1;
-		let lft = pos.col - 1 > 0 ? pos.col - 1 : 0;
-		let rgt = pos.col + 1 < SIZE - 1 ? pos.row + 1 : SIZE - 1; 
-		let cardinals = {};
-		cardinals.top = layout[top][pos.row];
-		cardinals.lft = layout[pos.col][lft];
-		cardinals.rgt = layout[pos.col][rgt];
-		cardinals.btm = layout[btm][pos.row];
-		//creating an linking to other rooms
-		function nextRoom(){
 
-			let selection =-1;
-			while( selection =-1 ) {
-				let choice = Math.floor(Math.random() * 3.99);
-				//try to go upwards
-				if(choice == 0 && cardinals.top.isRoom == 0) {
-					return { row : top, col : pos.col };
-				} 
-				//try to go leftward
-				if( choice == 1 && cardinals.lft.isRoom == 0 ) {
-					return { row : pos.row, col: lft }
-				}
-				//try to go rightward 
-				if( choice == 2 && cardinals.rgt.isRoom == 0) {
-					return { row : pos.row, col: rgt }
-				}
-				if( choice == 3 && cardinals.btm.isRoom == 0 ) {
-					return { row : btm, col: pos.col }
-				}
+	//recurssive function
+	function buildRooms( startPoint ) {
+		let stack = [];
+		stack.push( { pos:startPoint, prev:null });
+		function buildRoom(pos, prevLink = null) {
+			if( roomCount >= MAX_ROOMS ) return;
+			stack.shift();
+			let room = layout[pos.row][pos.col];
+			//room is now real
+			room.isRoom = 1; 
+			let linkCount = roomCount == 1 ? 1 : 0; //if inital room set to one
+			//if not initial room set random number of links up to MAX_LINKS
+			let itm = 0
+			while(linkCount == 0 && roomCount < MAX_ROOMS) {
+				linkCount = Math.round(Math.random() * MAX_LINKS);
+				linkCount = roomCount + linkCount > MAX_ROOMS ? 0 : linkCount;
+			}
+			roomCount += linkCount; //rooms created during this iteration
+			//phase one getting tiles in available cardinal positions
+			let cardinal = [];
+			for(var row = pos.row-1; row < pos.row + 2; row++ ) {
+				if(typeof layout[row] == 'undefined' || layout[row][pos.col].isRoom)
+					continue;
+				cardinal.push({row:row, col:pos.col});
+			}
+			for(var col = pos.col-1; col < pos.col+2; col++){
+				if(typeof layout[col] == 'undefined' || layout[pos.row][col].isRoom)
+					continue;
+				cardinal.push({row:pos.row, col:col})
+			}
+			while(cardinal.length > linkCount) {
+				let index = Math.round(Math.random() * cardinal.length)
+				cardinal.splice(index,1);
+			}
+			//phase 4 link rooms
+			if( prevLink ) room.links.push(prevLink);
+
+			for(var i = 0; i < cardinal.length; i++ ) {
+				stack.push({ pos:cardinal[i], prev:pos});
+			}
+
+			if(stack.length > 0 || roomCount < MAX_ROOMS) {
+				buildRoom(stack[0].pos, stack[0].prev);
 			}
 		}
-		for(var i = 0; i < rs; i++ ) {
-			gridCount--;
-			let node = nextRoom();
-			room.links.push(node);
-			buildRoom(node);
-
-		}
-
+		buildRoom(stack[0].pos, stack[0].prev);
+		roomCount++;
 	}
 
-	buildRoom(startPos);
+	startPos = {
+		row : Math.round(Math.random() * (GRID_SIZE - 1)), 
+		col: Math.round(Math.random() * (GRID_SIZE - 1))
+	}
+	buildRooms(startPos);
+	console.log(layout)
 
 	function drawMap() {
 		let cnv = document.getElementById('game');
@@ -74,19 +77,18 @@ var Map = (function(){
 		let ctx = cnv.getContext('2d');
 		for(var i = 0, row; row = layout[i]; i++ ) {
 			for( var j = 0, col; col = row[j]; j++ ) {
-				ctx.strokeStyle = 'white';
+				ctx.strokeStyle = 'black';
 				ctx.strokeRect( j * 16, i * 16, 16, 16);
 				if(layout[i][j].isRoom == 1 ) {
-					ctx.fillStyle = 'rgba(255,255,255,0.5)';
+					ctx.fillStyle = 'rgba(0,0,0,0.5)';
 					ctx.fillRect( j * 16, i * 16, 16, 16);
 				}
 			}
 		}
 	}
 
-	return { 
-		layout : layout,
-		drawMap : drawMap
+	return {
+		drawMap: drawMap
 	}
 
 })();
